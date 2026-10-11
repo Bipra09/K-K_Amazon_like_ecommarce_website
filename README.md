@@ -171,10 +171,8 @@ npm start
 
 This project is licensed under the MIT License.
 
-## 🆘 Support
 
-For support, email support@kk-ecommerce.com or create an issue in the repository.
 
 ---
 
-**Built with ❤️ by Bipra09**
+**Built with ❤️ by [Bipra0](https://github.com/Bipra09) **
