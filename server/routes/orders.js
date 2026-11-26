@@ -109,7 +109,7 @@ router.post('/', authenticateToken, [
     return res.status(201).json(order);
   } catch (error) {
     if (error.checkoutStatus) return res.status(error.checkoutStatus).json({ message: error.message });
-    console.error('Checkout failed:', error.name);
+    console.error('Checkout failed:', error.name, Object.keys(error.errors ?? {}));
     return res.status(500).json({ message: 'Order could not be placed' });
   }
 });
