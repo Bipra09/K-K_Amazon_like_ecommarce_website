@@ -153,18 +153,25 @@ router.put('/orders/:id/status', authenticateToken, requireAdmin, [
     }
 
     const { status, trackingNumber, notes } = req.body;
-    const order = await Order.findById(req.params.id);
-    
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
+    let order;
+    if (status === 'cancelled') {
+      order = await Order.cancelAndRestock(req.params.id, req.user.id, notes);
+    } else {
+      await Order.db.transaction(async session => {
+        order = await Order.findById(req.params.id).session(session);
+        if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+        if (order.status === 'cancelled') {
+          throw Object.assign(new Error('A cancelled order cannot change status'), { status: 409 });
+        }
+        if (trackingNumber) order.shipping.trackingNumber = trackingNumber;
+        await order.updateStatus(status, notes, req.user.id);
+      });
     }
-
-    order.updateStatus(status, trackingNumber, notes);
-    await order.save();
 
     await order.populate('user', 'firstName lastName email');
     res.json(order);
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

@@ -17,7 +17,8 @@ const orderItemSchema = new mongoose.Schema({
   },
   selectedVariant: {
     name: String,
-    value: String
+    value: String,
+    inventoryId: mongoose.Schema.Types.ObjectId
   },
   total: {
     type: Number,
@@ -37,6 +38,7 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   items: [orderItemSchema],
+  inventoryReserved: { type: Boolean, default: false },
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
@@ -85,13 +87,11 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   shippingAddress: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User.addresses',
+    type: mongoose.Schema.Types.Mixed,
     required: true
   },
   billingAddress: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User.addresses'
+    type: mongoose.Schema.Types.Mixed
   },
   notes: String,
   estimatedDelivery: Date,
@@ -149,7 +149,7 @@ orderSchema.virtual('isRefunded').get(function() {
 });
 
 // Indexes
-orderSchema.index({ orderNumber: 1 });
+
 orderSchema.index({ user: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ paymentStatus: 1 });
@@ -158,7 +158,7 @@ orderSchema.index({ 'shipping.trackingNumber': 1 });
 
 // Pre-save middleware to generate order number
 orderSchema.pre('save', function(next) {
-  if (this.isNew) {
+  if (this.isNew && !this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -220,9 +220,7 @@ orderSchema.methods.calculateTotals = function() {
 orderSchema.statics.findByOrderNumber = function(orderNumber) {
   return this.findOne({ orderNumber }).populate([
     { path: 'user', select: 'firstName lastName email phone' },
-    { path: 'items.product', select: 'name images price' },
-    { path: 'shippingAddress' },
-    { path: 'billingAddress' }
+    { path: 'items.product', select: 'name images price' }
   ]);
 };
 
@@ -233,8 +231,7 @@ orderSchema.statics.findByUser = function(userId, options = {}) {
   
   return this.find(query)
     .sort({ createdAt: -1 })
-    .populate('items.product', 'name images price')
-    .populate('shippingAddress');
+    .populate('items.product', 'name images price');
 };
 
 // Static method to get order statistics
@@ -256,6 +253,36 @@ orderSchema.statics.getOrderStats = function(userId) {
       }
     }
   ]);
+};
+
+// Release reserved stock and record cancellation atomically.
+orderSchema.statics.cancelAndRestock = async function(id, actor, note) {
+  let cancelled;
+  await this.db.transaction(async session => {
+    const order = await this.findById(id).session(session);
+    if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+    if (order.status === 'cancelled') {
+      cancelled = order;
+      return;
+    }
+    if (['shipped', 'delivered', 'refunded'].includes(order.status)) {
+      throw Object.assign(new Error('This order can no longer be cancelled'), { status: 409 });
+    }
+    if (order.inventoryReserved) {
+      const Product = this.db.model('Product');
+      for (const item of order.items) {
+        const variantId = item.selectedVariant?.inventoryId;
+        const inc = { stock: item.quantity };
+        if (variantId) inc['variants.$[variant].stock'] = item.quantity;
+        const options = variantId ? { session, arrayFilters: [{ 'variant._id': variantId }] } : { session };
+        await Product.updateOne({ _id: item.product }, { $inc: inc }, options);
+      }
+    }
+    order.$session(session);
+    await order.updateStatus('cancelled', note, actor);
+    cancelled = order;
+  });
+  return cancelled;
 };
 
 module.exports = mongoose.model('Order', orderSchema);

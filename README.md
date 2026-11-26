@@ -1,178 +1,40 @@
-# K&K E-commerce Website 🛒
+# K&K — E-commerce storefront
 
-A full-featured e-commerce platform inspired by Amazon, built with modern web technologies.
+A full-stack portfolio project built with React, Express, and MongoDB. The core workflow takes a shopper from product discovery to cart management, checkout, and order history.
 
-## ✨ Features
+## Start here
 
-### 🚀 Core Features
-- **User Authentication**: Sign up, login, logout with JWT
-- **Social Login**: Google & Facebook integration
-- **Product Catalog**: Categories, search, filters, sorting
-- **Shopping Cart**: Add/remove items, quantity management
-- **Wishlist**: Save favorite products
-- **Checkout System**: Multiple payment options, address management
-- **Order Management**: Order history, tracking, status updates
-- **Reviews & Ratings**: Product reviews and rating system
-- **Admin Panel**: Product management, order management, user management
-- **Recommendations**: AI-powered product suggestions
-- **Search**: Advanced search with autocomplete
+| What to inspect | Where |
+| --- | --- |
+| Sign-up, login, and JWT issuance | [Authentication routes](server/routes/auth.js) |
+| Product discovery and search | [Product routes](server/routes/products.js) and [search routes](server/routes/search.js) |
+| How a cart becomes an order | [Order routes](server/routes/orders.js) and [cart model](server/models/Cart.js) |
+| Storefront and API integration | [React client](client) and [Express entry point](server/index.js) |
 
-### 🛠️ Tech Stack
-- **Frontend**: React.js with modern hooks and context
-- **Backend**: Node.js + Express.js
-- **Database**: MongoDB with Mongoose ODM
-- **Authentication**: JWT + OAuth (Google/Facebook)
-- **Payment**: Stripe integration
-- **File Upload**: Cloudinary for image management
-- **Styling**: Tailwind CSS + Custom components
+## Engineering walkthrough
 
-## 🚀 Quick Start
+### Checkout and data ownership
 
-### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (local or Atlas)
-- npm or yarn
+The checkout route loads the signed-in user's cart, builds an order from its line items and totals, saves the order, and then clears the cart. Order history is scoped to the signed-in user, and individual order routes use an access-check middleware.
 
-### Installation
+Checkout reserves inventory with conditional stock updates. MongoDB commits the reservation, order, and cart clear in one transaction. If an item sells out, the API returns HTTP 409 and preserves the cart. Product prices are read from the catalog during checkout. The [integration workflow](.github/workflows/checkout.yml) covers last-unit contention and rollback for a partly available cart.
 
-1. **Clone and install dependencies**
-   ```bash
-   git clone <your-repo>
-   cd kk-ecommerce
-   npm run install-all
-   ```
+### Demo scope
 
-2. **Environment Setup**
-   ```bash
-   cp .env.example .env
-   # Fill in your environment variables
-   ```
+The repository contains catalog, cart, orders, wishlist, reviews, and admin API modules. Checkout records a payment-method selection as part of the order. The storefront uses a cash-on-delivery demo flow.
 
-3. **Start Development**
-   ```bash
-   npm run dev
-   ```
+## Run locally
 
-4. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend: http://localhost:5000
+Use Node.js, npm, and MongoDB Atlas or a local MongoDB replica set. Checkout requires transaction support. From the repository root:
 
-## 📁 Project Structure
-
-```
-kk-ecommerce/
-├── client/                 # React frontend
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/        # Page components
-│   │   ├── context/      # React context providers
-│   │   ├── hooks/        # Custom hooks
-│   │   └── utils/        # Utility functions
-├── server/                # Node.js backend
-│   ├── controllers/      # Route controllers
-│   ├── models/          # MongoDB models
-│   ├── routes/          # API routes
-│   ├── middleware/      # Custom middleware
-│   └── utils/           # Backend utilities
-├── uploads/              # File uploads (development)
-└── docs/                 # Documentation
+```sh
+npm run install-all
+cp env.example .env
+npm run dev
 ```
 
-## 🔧 Environment Variables
+Before starting the app, set `MONGODB_URI` and a local `JWT_SECRET` in `.env`. The React app runs on [localhost:3000](http://localhost:3000). Use [localhost:5000/api/health](http://localhost:5000/api/health) to check that Express is responding.
 
-Create a `.env` file in the root directory:
+## License
 
-```env
-# Server
-PORT=5000
-NODE_ENV=development
-
-# Database
-MONGODB_URI=your_mongodb_connection_string
-
-# JWT
-JWT_SECRET=your_jwt_secret_key
-
-# OAuth
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
-
-# Payment
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-
-# Cloudinary
-CLOUDINARY_CLOUD_NAME=your_cloudinary_name
-CLOUDINARY_API_KEY=your_cloudinary_api_key
-CLOUDINARY_API_SECRET=your_cloudinary_api_secret
-
-# Email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
-```
-
-## 🚀 Deployment
-
-### Frontend (Vercel/Netlify)
-```bash
-npm run build
-# Deploy the client/build folder
-```
-
-### Backend (Render/AWS/Heroku)
-```bash
-npm start
-# Set environment variables in your hosting platform
-```
-
-## 📱 Features in Detail
-
-### User Module
-- Secure authentication with JWT
-- Social login integration
-- Profile management
-- Address book
-- Order history
-
-### Product Module
-- Rich product catalog
-- Category management
-- Advanced search and filters
-- Product recommendations
-- Stock management
-
-### Shopping Experience
-- Smart shopping cart
-- Wishlist functionality
-- Secure checkout
-- Multiple payment methods
-- Order tracking
-
-### Admin Features
-- Product CRUD operations
-- Order management
-- User management
-- Analytics dashboard
-- Content management
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-
-
----
-
-**Built with ❤️ by [Bipra0](https://github.com/Bipra09) **
+[MIT](License)

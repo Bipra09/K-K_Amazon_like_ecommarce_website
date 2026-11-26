@@ -44,8 +44,7 @@ router.post('/add', authenticateToken, [
       cart = new Cart({ user: req.user.id, items: [] });
     }
 
-    cart.addItem(productId, quantity, selectedVariant);
-    await cart.save();
+    await cart.addItem(productId, Number(quantity), selectedVariant);
     
     await cart.populate('items.product');
     res.json(cart);
@@ -71,8 +70,7 @@ router.put('/update/:itemId', authenticateToken, [
       return res.status(404).json({ message: 'Cart not found' });
     }
 
-    cart.updateItemQuantity(req.params.itemId, quantity);
-    await cart.save();
+    await cart.updateItemQuantity(req.params.itemId, Number(quantity));
     
     await cart.populate('items.product');
     res.json(cart);
@@ -90,8 +88,7 @@ router.delete('/remove/:itemId', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Cart not found' });
     }
 
-    cart.removeItem(req.params.itemId);
-    await cart.save();
+    await cart.removeItem(req.params.itemId);
     
     await cart.populate('items.product');
     res.json(cart);
@@ -109,8 +106,7 @@ router.delete('/clear', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Cart not found' });
     }
 
-    cart.clearCart();
-    await cart.save();
+    await cart.clearCart();
     
     res.json(cart);
   } catch (error) {

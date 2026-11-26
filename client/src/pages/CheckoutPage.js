@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { useQuery, useMutation } from 'react-query';
+import { useMutation } from 'react-query';
 import { 
   CreditCard, 
   Truck, 
@@ -20,7 +20,13 @@ import toast from 'react-hot-toast';
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cartItems, clearCart } = useCart();
+  const { cart, loadCartFromServer } = useCart();
+  const cartItems = (cart?.items ?? []).filter(item => item.product).map(item => ({
+    ...item,
+    name: item.product.name,
+    images: item.product.images?.map(image => image.url),
+    price: item.selectedVariant?.name ? item.selectedVariant.price : (item.product.price ?? item.price)
+  }));
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     shipping: {
@@ -47,22 +53,8 @@ const CheckoutPage = () => {
         country: user?.address?.country || 'United States'
       }
     },
-    payment: {
-      method: 'card',
-      cardNumber: '',
-      expiryDate: '',
-      cvv: '',
-      cardholderName: ''
-    },
     sameAsShipping: true
   });
-
-  // Fetch shipping options
-  const { data: shippingOptions } = useQuery(
-    'shippingOptions',
-    () => ordersAPI.getShippingOptions(),
-    { staleTime: 10 * 60 * 1000 }
-  );
 
   // Create order mutation
   const createOrderMutation = useMutation(
@@ -70,8 +62,8 @@ const CheckoutPage = () => {
     {
       onSuccess: (data) => {
         toast.success('Order placed successfully!');
-        clearCart();
-        navigate(`/orders/${data._id}`);
+        loadCartFromServer();
+        navigate(`/orders/${(data.data ?? data)._id}`);
       },
       onError: (error) => {
         toast.error(error.response?.data?.message || 'Failed to place order');
@@ -81,9 +73,11 @@ const CheckoutPage = () => {
 
   // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = 5.99; // Default shipping cost
-  const tax = subtotal * 0.08; // 8% tax
-  const total = subtotal + shipping + tax;
+  const shipping = cart.shippingMethod?.cost ?? 0;
+  const tax = 0;
+  const discount = Math.min(subtotal, cart.coupon?.discountType === 'percentage'
+    ? subtotal * (cart.coupon.discount || 0) / 100 : (cart.coupon?.discount || 0));
+  const total = subtotal + shipping + tax - discount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -106,7 +100,7 @@ const CheckoutPage = () => {
 
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
-    const [parent, child] = name.split('.');
+    const [parent, , child] = name.split('.');
     setFormData(prev => ({
       ...prev,
       [parent]: {
@@ -136,8 +130,7 @@ const CheckoutPage = () => {
                shipping.phone && shipping.address.street && shipping.address.city && 
                shipping.address.state && shipping.address.zipCode;
       case 2: // Payment
-        const payment = formData.payment;
-        return payment.cardNumber && payment.expiryDate && payment.cvv && payment.cardholderName;
+        return true;
       default:
         return true;
     }
@@ -164,18 +157,9 @@ const CheckoutPage = () => {
     }
 
     const orderData = {
-      items: cartItems.map(item => ({
-        product: item._id,
-        quantity: item.quantity,
-        price: item.price
-      })),
-      shipping: formData.shipping,
-      billing: formData.billing,
-      payment: formData.payment,
-      subtotal,
-      shipping,
-      tax,
-      total
+      shippingAddress: formData.shipping.address,
+      billingAddress: formData.sameAsShipping ? formData.shipping.address : formData.billing.address,
+      paymentMethod: 'cod'
     };
 
     createOrderMutation.mutate(orderData);
@@ -522,67 +506,7 @@ const CheckoutPage = () => {
                       )}
                     </div>
 
-                    {/* Payment Method */}
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Payment Method</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Card Number *
-                          </label>
-                          <input
-                            type="text"
-                            name="payment.cardNumber"
-                            value={formData.payment.cardNumber}
-                            onChange={handleChange}
-                            placeholder="1234 5678 9012 3456"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Cardholder Name *
-                          </label>
-                          <input
-                            type="text"
-                            name="payment.cardholderName"
-                            value={formData.payment.cardholderName}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Expiry Date *
-                          </label>
-                          <input
-                            type="text"
-                            name="payment.expiryDate"
-                            value={formData.payment.expiryDate}
-                            onChange={handleChange}
-                            placeholder="MM/YY"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            CVV *
-                          </label>
-                          <input
-                            type="text"
-                            name="payment.cvv"
-                            value={formData.payment.cvv}
-                            onChange={handleChange}
-                            placeholder="123"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <p>Demo checkout uses cash on delivery.</p>
                   </motion.div>
                 )}
 
@@ -640,8 +564,7 @@ const CheckoutPage = () => {
                       <div>
                         <h3 className="text-lg font-medium text-gray-900 mb-3">Payment Method</h3>
                         <div className="bg-gray-50 rounded-lg p-4">
-                          <p className="text-gray-900">Credit Card ending in {formData.payment.cardNumber.slice(-4)}</p>
-                          <p className="text-gray-600">{formData.payment.cardholderName}</p>
+                          <p className="text-gray-900">Cash on delivery</p>
                         </div>
                       </div>
                     </div>
@@ -742,7 +665,7 @@ const CheckoutPage = () => {
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <div className="flex items-center space-x-2 text-sm text-gray-500">
                     <Lock className="w-4 h-4" />
-                    <span>Secure checkout</span>
+                    <span>Demo checkout</span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm text-gray-500 mt-2">
                     <Shield className="w-4 h-4" />
