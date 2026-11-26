@@ -19,7 +19,7 @@ jobs:
       - name: Build the storefront and install Chromium
         run: |
           npm --prefix client ci
-          CI=false npm --prefix client run build
+          CI=false REACT_APP_API_URL=/api npm --prefix client run build
           npm install --no-save --package-lock=false playwright@1.52.0
           npx playwright install --with-deps chromium
       - name: Start MongoDB replica set
@@ -108,9 +108,13 @@ jobs:
                 }
                 await page.getByRole('button',{name:'Continue',exact:true}).click();
                 await page.getByRole('button',{name:'Continue',exact:true}).click();
-                const pending = page.waitForResponse(r=>r.url()===base+'/api/orders' && r.request().method()==='POST');
-                await page.getByRole('button',{name:'Place Order',exact:true}).click();
-                const result=await pending;
+                page.on('pageerror', error => console.log('Browser page error:', error.message));
+                page.on('requestfailed', request => console.log('Browser request failed:', new URL(request.url()).pathname, request.failure()?.errorText));
+                page.on('request', request => { if(request.method()==='POST') console.log('Browser POST:', new URL(request.url()).origin, new URL(request.url()).pathname); });
+                const [result] = await Promise.all([
+                  page.waitForResponse(r=>new URL(r.url()).pathname.replace(/\/$/,'')==='/api/orders' && r.request().method()==='POST'),
+                  page.getByRole('button',{name:'Place Order',exact:true}).click()
+                ]);
                 assert.equal(result.status(),201,await result.text());
                 const browserOrder=await result.json();
                 await page.waitForURL(base+'/orders/'+browserOrder._id);
