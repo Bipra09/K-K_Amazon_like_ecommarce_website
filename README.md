@@ -17,15 +17,15 @@ A full-stack portfolio project built with React, Express, and MongoDB. The core 
 
 The checkout route loads the signed-in user's cart, builds an order from its line items and totals, saves the order, and then clears the cart. Order history is scoped to the signed-in user, and individual order routes use an access-check middleware.
 
-The current checkout writes the order and cart separately. An inventory-aware checkout would reserve stock with a conditional database update, then commit the stock, order, and cart changes together. A regression test should start with one unit and submit two competing checkouts, then verify that only one completes and the final stock is zero.
+Checkout reserves inventory with conditional stock updates. MongoDB commits the reservation, order, and cart clear in one transaction. If an item sells out, the API returns HTTP 409 and preserves the cart. Product prices are read from the catalog during checkout. The [integration workflow](.github/workflows/checkout.yml) covers last-unit contention and rollback for a partly available cart.
 
 ### Demo scope
 
-The repository contains catalog, cart, orders, wishlist, reviews, and admin API modules. Checkout records a payment-method selection as part of the order. Payment processing, social sign-in, and recommendations are outside this walkthrough.
+The repository contains catalog, cart, orders, wishlist, reviews, and admin API modules. Checkout records a payment-method selection as part of the order. The storefront uses a cash-on-delivery demo flow.
 
 ## Run locally
 
-Use Node.js, npm, and a running MongoDB instance. From the repository root:
+Use Node.js, npm, and MongoDB Atlas or a local MongoDB replica set. Checkout requires transaction support. From the repository root:
 
 ```sh
 npm run install-all
