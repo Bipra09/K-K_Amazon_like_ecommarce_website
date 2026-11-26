@@ -102,8 +102,10 @@ router.post('/', authenticateToken, [
         shippingAddress, billingAddress, paymentMethod: req.body.paymentMethod, notes: req.body.notes,
       });
       await savedOrder.save({ session });
-      cart.$session(session);
-      await cart.clearCart();
+      await Cart.updateOne({ _id: cart._id }, {
+        $set: { items: [], lastUpdated: new Date() },
+        $unset: { coupon: '', shippingAddress: '', shippingMethod: '' },
+      }, { session });
       return savedOrder;
     });
     return res.status(201).json(order);
