@@ -100,7 +100,7 @@ const CheckoutPage = () => {
 
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
-    const [parent, child] = name.split('.');
+    const [parent, , child] = name.split('.');
     setFormData(prev => ({
       ...prev,
       [parent]: {
