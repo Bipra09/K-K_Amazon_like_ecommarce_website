@@ -147,7 +147,7 @@ orderSchema.virtual('isRefunded').get(function() {
 });
 
 // Indexes
-orderSchema.index({ orderNumber: 1 });
+
 orderSchema.index({ user: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ paymentStatus: 1 });
@@ -218,9 +218,7 @@ orderSchema.methods.calculateTotals = function() {
 orderSchema.statics.findByOrderNumber = function(orderNumber) {
   return this.findOne({ orderNumber }).populate([
     { path: 'user', select: 'firstName lastName email phone' },
-    { path: 'items.product', select: 'name images price' },
-    { path: 'shippingAddress' },
-    { path: 'billingAddress' }
+    { path: 'items.product', select: 'name images price' }
   ]);
 };
 
@@ -231,8 +229,7 @@ orderSchema.statics.findByUser = function(userId, options = {}) {
   
   return this.find(query)
     .sort({ createdAt: -1 })
-    .populate('items.product', 'name images price')
-    .populate('shippingAddress');
+    .populate('items.product', 'name images price');
 };
 
 // Static method to get order statistics
