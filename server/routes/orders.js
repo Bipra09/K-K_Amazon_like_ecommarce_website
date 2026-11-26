@@ -63,7 +63,8 @@ router.post('/', authenticateToken, [
   try {
     const shippingAddress = address(req.body.shippingAddress);
     const billingAddress = address(req.body.billingAddress ?? req.body.shippingAddress);
-    const order = await Order.db.transaction(async session => {
+    let order;
+    await Order.db.transaction(async session => {
       const cart = await Cart.findOne({ user: req.user.id }).session(session);
       if (!cart?.items.length) throw checkoutError(400, 'Cart is empty');
 
@@ -106,7 +107,7 @@ router.post('/', authenticateToken, [
         $set: { items: [], lastUpdated: new Date() },
         $unset: { coupon: '', shippingAddress: '', shippingMethod: '' },
       }, { session });
-      return savedOrder;
+      order = savedOrder;
     });
     return res.status(201).json(order);
   } catch (error) {
