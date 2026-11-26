@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   checkout:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
       JWT_SECRET: checkout-ci-test-only
