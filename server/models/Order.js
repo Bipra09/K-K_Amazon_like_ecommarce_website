@@ -17,7 +17,8 @@ const orderItemSchema = new mongoose.Schema({
   },
   selectedVariant: {
     name: String,
-    value: String
+    value: String,
+    inventoryId: mongoose.Schema.Types.ObjectId
   },
   total: {
     type: Number,
@@ -37,6 +38,7 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   items: [orderItemSchema],
+  inventoryReserved: { type: Boolean, default: false },
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
@@ -251,6 +253,36 @@ orderSchema.statics.getOrderStats = function(userId) {
       }
     }
   ]);
+};
+
+// Release reserved stock and record cancellation atomically.
+orderSchema.statics.cancelAndRestock = async function(id, actor, note) {
+  let cancelled;
+  await this.db.transaction(async session => {
+    const order = await this.findById(id).session(session);
+    if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+    if (order.status === 'cancelled') {
+      cancelled = order;
+      return;
+    }
+    if (['shipped', 'delivered', 'refunded'].includes(order.status)) {
+      throw Object.assign(new Error('This order can no longer be cancelled'), { status: 409 });
+    }
+    if (order.inventoryReserved) {
+      const Product = this.db.model('Product');
+      for (const item of order.items) {
+        const variantId = item.selectedVariant?.inventoryId;
+        const inc = { stock: item.quantity };
+        if (variantId) inc['variants.$[variant].stock'] = item.quantity;
+        const options = variantId ? { session, arrayFilters: [{ 'variant._id': variantId }] } : { session };
+        await Product.updateOne({ _id: item.product }, { $inc: inc }, options);
+      }
+    }
+    order.$session(session);
+    await order.updateStatus('cancelled', note, actor);
+    cancelled = order;
+  });
+  return cancelled;
 };
 
 module.exports = mongoose.model('Order', orderSchema);
