@@ -85,13 +85,11 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   shippingAddress: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User.addresses',
+    type: mongoose.Schema.Types.Mixed,
     required: true
   },
   billingAddress: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User.addresses'
+    type: mongoose.Schema.Types.Mixed
   },
   notes: String,
   estimatedDelivery: Date,
@@ -158,7 +156,7 @@ orderSchema.index({ 'shipping.trackingNumber': 1 });
 
 // Pre-save middleware to generate order number
 orderSchema.pre('save', function(next) {
-  if (this.isNew) {
+  if (this.isNew && !this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
