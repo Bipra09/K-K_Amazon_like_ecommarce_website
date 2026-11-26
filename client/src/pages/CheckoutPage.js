@@ -565,7 +565,6 @@ const CheckoutPage = () => {
                         <h3 className="text-lg font-medium text-gray-900 mb-3">Payment Method</h3>
                         <div className="bg-gray-50 rounded-lg p-4">
                           <p className="text-gray-900">Cash on delivery</p>
-                          <p className="text-gray-600">{formData.payment.cardholderName}</p>
                         </div>
                       </div>
                     </div>
