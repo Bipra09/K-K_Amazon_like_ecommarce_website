@@ -84,10 +84,10 @@ router.post('/', authenticateToken, [
         }
         const product = await Product.findOneAndUpdate(filter, { $inc: inc }, { session });
         if (!product) throw checkoutError(409, 'An item in your cart is sold out or unavailable');
-        const price = variant
-          ? product.variants.find(v => v.name === variant.name && v.value === variant.value && v.stock >= item.quantity).price
-          : product.price;
-        items.push({ product: product._id, quantity: item.quantity, selectedVariant: variant ?? undefined,
+        const stockVariant = variant && product.variants.find(v => v.name === variant.name && v.value === variant.value && v.stock >= item.quantity);
+        const price = stockVariant ? stockVariant.price : product.price;
+        items.push({ product: product._id, quantity: item.quantity,
+          selectedVariant: stockVariant ? { ...variant, inventoryId: stockVariant._id } : undefined,
           price, total: Math.round(price * item.quantity * 100) / 100 });
       }
 
@@ -98,7 +98,7 @@ router.post('/', authenticateToken, [
         ? subtotal * (coupon.discount || 0) / 100 : (coupon?.discount || 0));
       const savedOrder = new Order({
         orderNumber: 'KK-' + randomUUID(),
-        user: req.user.id, items, subtotal, shipping: { cost }, discount,
+        user: req.user.id, items, inventoryReserved: true, subtotal, shipping: { cost }, discount,
         total: Math.round((subtotal + cost - discount) * 100) / 100,
         shippingAddress, billingAddress, paymentMethod: req.body.paymentMethod, notes: req.body.notes,
       });
@@ -122,36 +122,15 @@ function checkoutError(status, message) {
 }
 
 
-// Cancel order
+// Repeated cancellation returns the same order without restoring stock twice.
 router.put('/:id/cancel', authenticateToken, canAccessOrder, async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
-    
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-
-    if (order.status === 'cancelled') {
-      return res.status(400).json({ message: 'Order is already cancelled' });
-    }
-
-
-    if (order.status === 'delivered') {
-      return res.status(400).json({ message: 'Cannot cancel delivered order' });
-    }
-
-
-    order.status = 'cancelled';
-    order.cancelledAt = new Date();
-    await order.save();
-
-
-    res.json(order);
+    return res.json(await Order.cancelAndRestock(req.params.id, req.user.id));
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error('Cancellation failed:', error.name);
+    return res.status(500).json({ message: 'Order could not be cancelled' });
   }
 });
-
 
 module.exports = router;
